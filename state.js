@@ -169,4 +169,112 @@ window.OutreachState = {
   getFirmsByStatus(status) {
     return this._firms.filter(f => this.getStatus(f.id) === status);
   },
+
+  // Extended API for UI integration
+  getAllFirms() {
+    return this._firms;
+  },
+
+  getFirmById(id) {
+    return this._firms.find(f => f.id === id) || null;
+  },
+
+  getFirmByIndex(i) {
+    return this._firms[i] || null;
+  },
+
+  getQueueFirms() {
+    return this.getFirmsByStatus('queue');
+  },
+
+  getSentFirms() {
+    return this.getFirmsByStatus('sent');
+  },
+
+  getSkippedFirms() {
+    return this.getFirmsByStatus('skipped');
+  },
+
+  resetEdits(id) {
+    delete this._edits[id];
+    persist(this);
+  },
+
+  clearAll() {
+    this._position = 0;
+    this._sent = new Set();
+    this._skipped = new Set();
+    this._edits = {};
+    persist(this);
+  },
 };
+
+// Keyboard Navigation
+document.addEventListener('keydown', function (e) {
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable) {
+    return;
+  }
+
+  const S = window.OutreachState;
+
+  switch (e.key) {
+    case 'j':
+    case 'ArrowDown':
+      e.preventDefault();
+      S.next();
+      window.dispatchEvent(new CustomEvent('outreach:navigate', { detail: { direction: 'next' } }));
+      break;
+
+    case 'k':
+    case 'ArrowUp':
+      e.preventDefault();
+      S.prev();
+      window.dispatchEvent(new CustomEvent('outreach:navigate', { detail: { direction: 'prev' } }));
+      break;
+
+    case 's': {
+      const firm = S.getCurrentFirm();
+      if (firm) {
+        S.markSent(firm.id);
+        window.dispatchEvent(new CustomEvent('outreach:statusChange', { detail: { id: firm.id, status: 'sent' } }));
+      }
+      break;
+    }
+
+    case 'x': {
+      const firm = S.getCurrentFirm();
+      if (firm) {
+        S.markSkipped(firm.id);
+        window.dispatchEvent(new CustomEvent('outreach:statusChange', { detail: { id: firm.id, status: 'skipped' } }));
+      }
+      break;
+    }
+
+    case 'u': {
+      const firm = S.getCurrentFirm();
+      if (firm) {
+        S.unmark(firm.id);
+        window.dispatchEvent(new CustomEvent('outreach:statusChange', { detail: { id: firm.id, status: 'queue' } }));
+      }
+      break;
+    }
+
+    case 'c': {
+      const firm = S.getCurrentFirm();
+      if (firm) {
+        const body = S.getEffectiveEmail(firm.id);
+        navigator.clipboard.writeText(body).then(() => {
+          window.dispatchEvent(new CustomEvent('outreach:copied', { detail: { field: 'emailBody' } }));
+        });
+      }
+      break;
+    }
+
+    case 'Enter':
+    case ' ':
+      e.preventDefault();
+      window.dispatchEvent(new CustomEvent('outreach:toggle', { detail: { position: S.getPosition() } }));
+      break;
+  }
+});
