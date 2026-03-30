@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CloudNC Outreach Pipeline</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: { accent: '#FD384E' },
+          fontFamily: { sans: ['system-ui', '-apple-system', 'sans-serif'] },
+        }
+      }
+    }
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="state.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-white text-gray-900 font-sans min-h-screen" x-cloak>
+
+<div x-data="app()" x-init="initialize()" class="min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="border-b border-gray-200 bg-white sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <h1 class="text-lg font-semibold tracking-tight">CloudNC Outreach</h1>
+        <span class="text-xs text-gray-400 hidden sm:inline">Pipeline v2</span>
+      </div>
+      <div class="flex items-center gap-2 text-xs">
+        <span class="px-2 py-1 rounded-full bg-gray-100 text-gray-600" x-text="`${counts.queue} queue`"></span>
+        <span class="px-2 py-1 rounded-full bg-green-50 text-green-700" x-text="`${counts.sent} sent`"></span>
+        <span class="px-2 py-1 rounded-full bg-yellow-50 text-yellow-700" x-text="`${counts.skipped} skip`"></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tab bar -->
+  <nav class="border-b border-gray-100 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1">
+      <template x-for="t in ['pipeline', 'sent', 'skipped']" :key="t">
+        <button
+          @click="tab = t; updateFilteredFirms()"
+          :class="tab === t ? 'border-accent text-accent' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          class="px-4 py-2 text-sm font-medium border-b-2 capitalize transition-colors"
+          x-text="t"
+        ></button>
+      </template>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+
+    <!-- Pipeline view -->
+    <template x-if="tab === 'pipeline'">
+      <div>
+        <template x-if="firm">
+          <div class="space-y-6">
+            <!-- Firm card header -->
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded"
+                    :class="firm.tier === 'A' ? 'bg-accent/10 text-accent' : firm.tier === 'B' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'"
+                    x-text="`Tier ${firm.tier}`"></span>
+                  <span class="text-xs text-gray-400" x-text="`#${firm.rank} of ${counts.total}`"></span>
+                </div>
+                <h2 class="text-2xl font-bold" x-text="firm.firm"></h2>
+                <p class="text-sm text-gray-500 mt-1" x-text="firm.hq"></p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button @click="goPrev()" :disabled="position === 0"
+                  class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                </button>
+                <span class="text-xs text-gray-400 tabular-nums w-16 text-center" x-text="`${position + 1} / ${counts.total}`"></span>
+                <button @click="goNext()" :disabled="position >= counts.total - 1"
+                  class="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Firm details grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div class="bg-gray-50 rounded-lg p-4">
+                <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Fund</div>
+                <div class="text-sm font-medium" x-text="firm.fundSize"></div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-4">
+                <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Stage</div>
+                <div class="text-sm font-medium" x-text="firm.stage"></div>
+              </div>
+              <div class="bg-gray-50 rounded-lg p-4">
+                <div class="text-xs text-gray-400 uppercase tracking-wider mb-1">Contact</div>
+                <div class="text-sm font-medium" x-text="firm.contact"></div>
+                <div class="text-xs text-gray-400" x-text="firm.contactTitle"></div>
+              </div>
+            </div>
+
+            <!-- Thesis & Why -->
+            <div class="space-y-4">
+              <div>
+                <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-1">Thesis</h3>
+                <p class="text-sm text-gray-700 leading-relaxed" x-text="firm.thesis"></p>
+              </div>
+              <div>
+                <h3 class="text-xs text-gray-400 uppercase tracking-wider mb-1">Why this firm</h3>
+                <p class="text-sm text-gray-700 leading-relaxed" x-text="firm.why"></p>
+              </div>
+            </div>
+
+            <!-- Email preview -->
+            <div class="border border-gray-200 rounded-lg overflow-hidden">
+              <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 flex items-center justify-between">
+                <div class="text-xs text-gray-400 uppercase tracking-wider">Email Preview</div>
+                <button @click="editing = !editing" class="text-xs text-accent hover:underline" x-text="editing ? 'Close editor' : 'Edit'"></button>
+              </div>
+              <div class="p-4 space-y-3">
+                <div>
+                  <div class="text-xs text-gray-400 mb-1">Subject</div>
+                  <template x-if="!editing">
+                    <div class="text-sm font-medium" x-text="effectiveSubject"></div>
+                  </template>
+                  <template x-if="editing">
+                    <input type="text" x-model="editSubject" @input="saveSubjectEdit()"
+                      class="w-full text-sm border border-gray-200 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent">
+                  </template>
+                </div>
+                <div>
+                  <div class="text-xs text-gray-400 mb-1">Body</div>
+                  <template x-if="!editing">
+                    <div class="text-sm text-gray-700 whitespace-pre-line leading-relaxed" x-text="effectiveBody"></div>
+                  </template>
+                  <template x-if="editing">
+                    <textarea x-model="editBody" @input="saveBodyEdit()" rows="12"
+                      class="w-full text-sm border border-gray-200 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent font-mono leading-relaxed"></textarea>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center gap-3 pt-2">
+              <button @click="markSent()" class="flex-1 sm:flex-none px-6 py-2.5 bg-accent text-white text-sm font-medium rounded-lg hover:bg-accent/90 transition">
+                Mark Sent &amp; Next
+              </button>
+              <button @click="markSkipped()" class="flex-1 sm:flex-none px-6 py-2.5 border border-gray-200 text-sm font-medium rounded-lg hover:bg-gray-50 transition">
+                Skip
+              </button>
+              <template x-if="currentStatus !== 'queue'">
+                <button @click="unmark()" class="px-4 py-2.5 text-xs text-gray-400 hover:text-gray-600 transition">
+                  Return to queue
+                </button>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="!firm">
+          <div class="text-center py-20 text-gray-400">
+            <p class="text-lg">No firms loaded</p>
+          </div>
+        </template>
+      </div>
+    </template>
+
+    <!-- Sent / Skipped list views -->
+    <template x-if="tab === 'sent' || tab === 'skipped'">
+      <div>
+        <div class="mb-4 text-sm text-gray-500" x-text="`${filteredFirms.length} firms`"></div>
+        <template x-if="filteredFirms.length === 0">
+          <div class="text-center py-16 text-gray-400">
+            <p x-text="`No ${tab} firms yet`"></p>
+          </div>
+        </template>
+        <div class="space-y-2">
+          <template x-for="f in filteredFirms" :key="f.id">
+            <div class="border border-gray-200 rounded-lg p-4 flex items-center justify-between hover:bg-gray-50 transition cursor-pointer"
+              @click="jumpTo(f.id)">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                    :class="f.tier === 'A' ? 'bg-accent/10 text-accent' : f.tier === 'B' ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-500'"
+                    x-text="`${f.tier}`"></span>
+                  <span class="text-sm font-medium" x-text="f.firm"></span>
+                </div>
+                <p class="text-xs text-gray-400 mt-0.5" x-text="`${f.contact} · ${f.hq}`"></p>
+              </div>
+              <button @click.stop="returnToQueue(f.id)" class="text-xs text-gray-400 hover:text-accent transition px-2 py-1">
+                Return to queue
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </template>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-gray-100 py-3 text-center text-xs text-gray-300">
+    CloudNC Outreach Pipeline
+  </footer>
+
+</div>
+
+<script>
+function app() {
+  return {
+    tab: 'pipeline',
+    firm: null,
+    position: 0,
+    counts: { queue: 0, sent: 0, skipped: 0, total: 0 },
+    editing: false,
+    editSubject: '',
+    editBody: '',
+    effectiveSubject: '',
+    effectiveBody: '',
+    currentStatus: 'queue',
+    filteredFirms: [],
+
+    async initialize() {
+      try {
+        const resp = await fetch('data/firms_v1.json');
+        const firms = await resp.json();
+        OutreachState.init(firms);
+        this.refresh();
+      } catch (e) {
+        console.error('Failed to load firms:', e);
+      }
+    },
+
+    refresh() {
+      this.firm = OutreachState.getCurrentFirm();
+      this.position = OutreachState.getPosition();
+      this.counts = OutreachState.getCounts();
+      if (this.firm) {
+        this.currentStatus = OutreachState.getStatus(this.firm.id);
+        this.effectiveSubject = OutreachState.getEffectiveSubject(this.firm.id);
+        this.effectiveBody = OutreachState.getEffectiveEmail(this.firm.id);
+        this.editSubject = this.effectiveSubject;
+        this.editBody = this.effectiveBody;
+      }
+      this.updateFilteredFirms();
+    },
+
+    updateFilteredFirms() {
+      if (this.tab === 'sent') {
+        this.filteredFirms = OutreachState.getFirmsByStatus('sent');
+      } else if (this.tab === 'skipped') {
+        this.filteredFirms = OutreachState.getFirmsByStatus('skipped');
+      }
+    },
+
+    goNext() {
+      OutreachState.next();
+      this.editing = false;
+      this.refresh();
+    },
+
+    goPrev() {
+      OutreachState.prev();
+      this.editing = false;
+      this.refresh();
+    },
+
+    markSent() {
+      if (!this.firm) return;
+      OutreachState.markSent(this.firm.id);
+      OutreachState.next();
+      this.editing = false;
+      this.refresh();
+    },
+
+    markSkipped() {
+      if (!this.firm) return;
+      OutreachState.markSkipped(this.firm.id);
+      OutreachState.next();
+      this.editing = false;
+      this.refresh();
+    },
+
+    unmark() {
+      if (!this.firm) return;
+      OutreachState.unmark(this.firm.id);
+      this.refresh();
+    },
+
+    returnToQueue(id) {
+      OutreachState.unmark(id);
+      this.refresh();
+    },
+
+    jumpTo(id) {
+      const idx = OutreachState._firms.findIndex(f => f.id === id);
+      if (idx >= 0) {
+        OutreachState.setPosition(idx);
+        this.tab = 'pipeline';
+        this.editing = false;
+        this.refresh();
+      }
+    },
+
+    saveSubjectEdit() {
+      if (!this.firm) return;
+      OutreachState.saveEdit(this.firm.id, 'emailSubject', this.editSubject);
+      this.effectiveSubject = this.editSubject;
+    },
+
+    saveBodyEdit() {
+      if (!this.firm) return;
+      OutreachState.saveEdit(this.firm.id, 'emailBody', this.editBody);
+      this.effectiveBody = this.editBody;
+    },
+  };
+}
+</script>
+
+</body>
+</html>
